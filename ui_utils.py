@@ -87,13 +87,7 @@ def apply_compact_style() -> None:
 
     regles = """
     <style>
-    /* Police pro (charte). On ne cible PAS [class*="css"] pour ne pas
-       casser les icônes Material de Streamlit (sinon leur nom s'affiche
-       en texte, ex. "keyboard_double_arrow_left"). */
-    html, body, [data-testid="stAppViewContainer"] {
-        font-family: "Segoe UI", system-ui, -apple-system,
-                     "Helvetica Neue", Arial, sans-serif;
-    }
+    
 
     /* Conteneur principal : moins de vide en haut, marges latérales mesurées */
     .block-container,
@@ -186,6 +180,12 @@ def apply_compact_style() -> None:
         background: var(--wafa-orange) !important;
         color: #FFFFFF !important;
         border-color: var(--wafa-orange) !important;
+    }
+    /* Masquer le bouton de repli de la barre latérale : son icône s'affichait
+       en toutes lettres ("keyboard_double_arrow_left"). La barre reste ouverte. */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarHeader"] {
+        display: none !important;
     }
     </style>
     """
