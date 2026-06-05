@@ -91,7 +91,7 @@ st.markdown("---")
 # =====================================================================
 st.subheader("Évolution temporelle")
 
-cg1, cg2, cg3 = st.columns([2, 1, 1])
+cg1, cg2, cg3 = st.columns([1, 1, 1])
 with cg1:
     granularity = st.radio(
         "Granularité",
@@ -100,18 +100,33 @@ with cg1:
         key="gran_societe",
     )
 with cg2:
-    annee_opts = ["Toutes"] + [str(a) for a in sorted(df["Année"].unique(), reverse=True)]
-    annee_f = st.selectbox("Année", annee_opts, key="annee_f_soc")
+    annees_dispo = sorted([int(a) for a in df["Année"].unique()], reverse=True)
+    annees_sel = st.multiselect(
+        "Année(s)", annees_dispo, default=annees_dispo, key="annees_soc"
+    )
 with cg3:
-    periode_f = st.selectbox("Période", options_periode(granularity), key="periode_f_soc")
-
-# Données filtrées selon les choix (utilisées par les deux graphes)
-df_g = filtrer_periode(df, annee_f, periode_f)
+    # "Toutes" retiré : la multi-sélection gère déjà "tout coché".
+    periodes_dispo = [p for p in options_periode(granularity) if p != "Toutes"]
+    if periodes_dispo:
+        periodes_sel = st.multiselect(
+            "Période(s)", periodes_dispo, default=periodes_dispo, key="periodes_soc"
+        )
+    else:
+        periodes_sel = []
+        st.caption("Période : Annuel")
 
 # --- Graphe 1 : évolution temporelle ---
-show_pct = st.checkbox("Axe variation %", value=False)
-fig_line = plot_evolution_line(df_g, societe, indicator, granularity, show_pct_axis=show_pct)
-st.plotly_chart(fig_line, use_container_width=True)
+show_pct = st.checkbox("Axe variation %", value=False, key="show_pct_soc")
+if not annees_sel or (periodes_dispo and not periodes_sel):
+    st.info("Sélectionnez au moins une année et une période.")
+else:
+    df_g = df[df["Année"].isin(annees_sel)]
+    if periodes_dispo:
+        df_g = df_g[df_g["Période"].isin(periodes_sel)]
+    fig_line = plot_evolution_line(
+        df_g, societe, indicator, granularity, show_pct_axis=show_pct
+    )
+    st.plotly_chart(fig_line, use_container_width=True)
 
 st.markdown("---")
 
@@ -120,7 +135,7 @@ st.markdown("---")
 # =====================================================================
 st.subheader("Comparaison YoY par période")
 
-cy1, cy2, cy3 = st.columns([2, 1, 1])
+cy1, cy2, cy3 = st.columns([1, 1, 1])
 with cy1:
     granularity_yoy = st.radio(
         "Granularité",
@@ -129,11 +144,25 @@ with cy1:
         key="gran_yoy",
     )
 with cy2:
-    annee_opts_yoy = ["Toutes"] + [str(a) for a in sorted(df["Année"].unique(), reverse=True)]
-    annee_f_yoy = st.selectbox("Année", annee_opts_yoy, key="annee_f_yoy")
+    annees_dispo_yoy = sorted([int(a) for a in df["Année"].unique()], reverse=True)
+    annees_sel_yoy = st.multiselect(
+        "Année(s)", annees_dispo_yoy, default=annees_dispo_yoy, key="annees_yoy"
+    )
 with cy3:
-    periode_f_yoy = st.selectbox("Période", options_periode(granularity_yoy), key="periode_f_yoy")
+    periodes_dispo_yoy = [p for p in options_periode(granularity_yoy) if p != "Toutes"]
+    if periodes_dispo_yoy:
+        periodes_sel_yoy = st.multiselect(
+            "Période(s)", periodes_dispo_yoy, default=periodes_dispo_yoy, key="periodes_yoy"
+        )
+    else:
+        periodes_sel_yoy = []
+        st.caption("Période : Annuel")
 
-df_yoy = filtrer_periode(df, annee_f_yoy, periode_f_yoy)
-fig_yoy = plot_yoy_bars(df_yoy, societe, indicator, granularity_yoy)
-st.plotly_chart(fig_yoy, use_container_width=True)
+if not annees_sel_yoy or (periodes_dispo_yoy and not periodes_sel_yoy):
+    st.info("Sélectionnez au moins une année et une période.")
+else:
+    df_yoy = df[df["Année"].isin(annees_sel_yoy)]
+    if periodes_dispo_yoy:
+        df_yoy = df_yoy[df_yoy["Période"].isin(periodes_sel_yoy)]
+    fig_yoy = plot_yoy_bars(df_yoy, societe, indicator, granularity_yoy)
+    st.plotly_chart(fig_yoy, use_container_width=True)
