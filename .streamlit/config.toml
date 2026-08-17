@@ -1,0 +1,10 @@
+# Thème clair forcé (charte Wafa Gestion), quel que soit le réglage du
+# téléphone ou du navigateur du visiteur. Garantit un rendu identique et
+# lisible sur PC comme sur mobile.
+[theme]
+base = "light"
+primaryColor = "#F39200"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F5F5"
+textColor = "#1A1A1A"
+font = "sans serif"

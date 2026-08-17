@@ -187,6 +187,40 @@ def apply_compact_style() -> None:
     [data-testid="stSidebarHeader"] {
         display: none !important;
     }
+    /* ============================================================
+       ADAPTATION MOBILE : ces règles ne s'appliquent QUE sous 640 px
+       de large (téléphones). Sur PC/tablette, rien ne change.
+       ============================================================ */
+    @media (max-width: 640px) {
+        /* Marges latérales réduites : plus de place pour le contenu */
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stAppViewBlockContainer"] {
+            padding-left: 0.9rem !important;
+            padding-right: 0.9rem !important;
+            padding-top: 3rem !important;
+        }
+
+        /* Un peu plus d'air entre les blocs (plus lisible au doigt) */
+        [data-testid="stVerticalBlock"] { gap: 0.9rem !important; }
+
+        /* Titres légèrement réduits pour tenir sur une ligne */
+        h1, [data-testid="stHeading"] h1 { font-size: 1.4rem !important; }
+        h2 { font-size: 1.15rem !important; }
+        h3 { font-size: 1.02rem !important; }
+
+        /* Cartes indicateurs (st.metric) plus compactes */
+        [data-testid="stMetric"] {
+            padding: 0.5rem 0.7rem !important;
+        }
+        [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+
+        /* Graphes Plotly : garantir qu'ils tiennent dans l'écran */
+        [data-testid="stPlotlyChart"],
+        [data-testid="stPlotlyChart"] > div {
+            width: 100% !important;
+        }
+    }
     </style>
     """
     st.markdown(variables + regles, unsafe_allow_html=True)
