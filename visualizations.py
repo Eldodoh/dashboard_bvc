@@ -38,6 +38,7 @@ from config import (
     PERIODES_SEMESTRIELLES,
     PERIODE_ANNUELLE,
     INDICATEUR_CA,
+    INDICATEUR_RN,
     PALETTE_ANNEES,
 )
 
@@ -72,6 +73,13 @@ def _empty_figure(message):
         font={"size": 13, "color": COLOR_GRAY_MEDIUM},
     )
     return _wafa_layout(fig)
+
+
+# Message affiché quand on demande le RN en trimestriel (donnée inexistante).
+MSG_RN_TRIMESTRIEL = (
+    "Le Résultat Net (RN) n'est pas disponible en trimestriel —<br>"
+    "choisissez Semestriel ou Annuel."
+)
 
 
 # =============================================================================
@@ -158,6 +166,8 @@ def plot_top_flop_yoy(df, year, indicator=INDICATEUR_CA, top=True, n=10):
 
 def plot_evolution_line(df, societe, indicator, granularity, show_pct_axis=False):
     """Courbe d'évolution temporelle d'une société."""
+    if indicator == INDICATEUR_RN and granularity == "Trimestriel":
+        return _empty_figure(MSG_RN_TRIMESTRIEL)
     series = get_company_series(df, societe, indicator, granularity).dropna(subset=["Valeur"])
     if series.empty:
         return _empty_figure(f"Aucune donnée {indicator} ({granularity}) pour {societe}")
@@ -204,6 +214,8 @@ def plot_evolution_line(df, societe, indicator, granularity, show_pct_axis=False
 
 def plot_yoy_bars(df, societe, indicator, period_type):
     """Barres comparatives YoY : groupes = périodes, barres = années."""
+    if indicator == INDICATEUR_RN and period_type == "Trimestriel":
+        return _empty_figure(MSG_RN_TRIMESTRIEL)
     mask = (
         (df["Société"] == societe)
         & (df["TypeValeur"] == indicator)
@@ -294,6 +306,8 @@ def plot_sector_aggregate(df, sector, indicator):
 
 def plot_companies_overlay(df, societes, indicator, granularity):
     """Courbes superposées pour une liste de sociétés."""
+    if indicator == INDICATEUR_RN and granularity == "Trimestriel":
+        return _empty_figure(MSG_RN_TRIMESTRIEL)
     if not societes:
         return _empty_figure("Aucune société sélectionnée")
 

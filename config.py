@@ -29,6 +29,8 @@ EXCEL_PATH: Path = Path(
 # =============================================================================
 SHEET_BASE: str = "Base_Finale"   # source principale (format long/tidy)
 SHEET_TRIMS: str = "Trims"        # source du mapping société → secteur
+SHEET_SEMESTRIEL: str = "Semestriel"  # lignes RN semestrielles (S1/S2)
+SHEET_ANNUEL: str = "Annuel"          # lignes RN annuelles
 
 # =============================================================================
 # SOURCE GOOGLE SHEETS (déploiement en ligne)
@@ -42,6 +44,9 @@ SHEET_TRIMS: str = "Trims"        # source du mapping société → secteur
 GSHEET_ID: str = os.environ.get("BVC_GSHEET_ID", "1tnjSxIjyXAbSBqPoQ50k6kfCNuPM6cJNXdtDlLf-cXQ")  # <-- colle ton ID entre les guillemets
 # Nom de l'onglet contenant les données trimestrielles (format large).
 GSHEET_TRIMS_TAB: str = os.environ.get("BVC_GSHEET_TRIMS_TAB", SHEET_TRIMS)
+# Onglets contenant le Résultat Net (RN), en semestriel et en annuel.
+GSHEET_SEMESTRIEL_TAB: str = os.environ.get("BVC_GSHEET_SEMESTRIEL_TAB", SHEET_SEMESTRIEL)
+GSHEET_ANNUEL_TAB: str = os.environ.get("BVC_GSHEET_ANNUEL_TAB", SHEET_ANNUEL)
 
 # =============================================================================
 # CHARTE GRAPHIQUE WAFA GESTION
@@ -99,11 +104,13 @@ GRANULARITES: list[str] = ["Trimestriel", "Semestriel", "Annuel"]
 INDICATEUR_CA: str = "CA"
 INDICATEUR_CAPEX: str = "Capex"            # version strippée (sans espace)
 INDICATEUR_ENDETTEMENT: str = "Endettement"
+INDICATEUR_RN: str = "RN"                  # Résultat Net (semestriel + annuel)
 
 INDICATEURS: list[str] = [
     INDICATEUR_CA,
     INDICATEUR_CAPEX,
     INDICATEUR_ENDETTEMENT,
+    INDICATEUR_RN,
 ]
 
 # =============================================================================

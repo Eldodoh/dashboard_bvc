@@ -1,61 +1,85 @@
 """
-data_loader.py — Chargement des données BVC depuis la feuille « Trims ».
+data_loader.py — Chargement des données BVC.
 
-La feuille « Trims » (format large, données trimestrielles) est l'UNIQUE
-source de vérité. En ligne, elle est lue depuis Google Sheets ; en local
-(hors ligne), depuis le fichier Excel. Les périodes semestrielles et
-annuelles sont calculées selon la nature comptable de chaque indicateur :
+Sources de vérité (Google Sheets en ligne, Excel en local hors ligne) :
+    - « Trims »      : CA / Capex / Endettement, format large TRIMESTRIEL.
+                       S1/S2/Annuel y sont RECALCULÉS selon la nature comptable :
+                           FLUX  (CA, Capex)   : S1=T1+T2, S2=T3+T4, Annuel=ΣT
+                           STOCK (Endettement) : S1=T2,   S2=T4,   Annuel=T4
+    - « Semestriel » : seules les lignes RN sont lues (colonnes S1_AAAA / S2_AAAA).
+    - « Annuel »     : seules les lignes RN sont lues (colonnes d'années pures AAAA ;
+                       les colonnes « Var %_… » sont ignorées).
 
-    - FLUX  (CA, Capex)      : additif      -> S1=T1+T2, S2=T3+T4, Annuel=ΣT
-    - STOCK (Endettement)    : non additif  -> S1=T2,   S2=T4,   Annuel=T4
-
-Une période n'est calculée que si TOUS les trimestres nécessaires sont
-présents. Sinon elle est omise (affichée « N/A » côté interface) : on ne
-remplace jamais une donnée manquante par 0.
+Le Résultat Net (RN) n'existe qu'en semestriel et annuel : il n'a jamais de
+valeur trimestrielle. Une période n'est jamais fabriquée à partir d'une donnée
+manquante : une case vide reste absente (affichée « N/A » côté interface), jamais 0.
 """
 from __future__ import annotations
 
 import math
+import re
 from urllib.parse import quote
 
 import pandas as pd
 
-from config import EXCEL_PATH, GSHEET_ID, GSHEET_TRIMS_TAB, SHEET_TRIMS
+from config import (
+    EXCEL_PATH,
+    GSHEET_ANNUEL_TAB,
+    GSHEET_ID,
+    GSHEET_SEMESTRIEL_TAB,
+    GSHEET_TRIMS_TAB,
+    INDICATEUR_RN,
+    SHEET_ANNUEL,
+    SHEET_SEMESTRIEL,
+    SHEET_TRIMS,
+)
 
-# --- Nature comptable des indicateurs ---
+# --- Nature comptable des indicateurs lus depuis « Trims » ---
 INDICATEURS_FLUX = {"CA", "Capex"}        # additifs sur la période
 INDICATEURS_STOCK = {"Endettement"}        # valeur de fin de période
 
 TRIMESTRES = ["T1", "T2", "T3", "T4"]
 
+# Reconnaissance des colonnes de période dans Semestriel / Annuel
+RE_COL_SEMESTRE = re.compile(r"S[12]_\d{4}")   # ex. "S1_2022"
+RE_COL_ANNEE = re.compile(r"\d{4}")            # ex. "2022" (exclut "Var %_22-23")
+
 # En dessous de ce nombre de lignes, une société est jugée « peu couverte »
 SEUIL_COUVERTURE_FAIBLE = 20
 
 
-def _read_trims_raw(excel_path: str | None = None) -> pd.DataFrame:
-    """Lit l'onglet Trims brut (format large), depuis Google Sheets ou Excel.
+def _read_tab_raw(
+    gsheet_tab: str, excel_sheet: str, excel_path: str | None = None
+) -> pd.DataFrame:
+    """Lit un onglet brut (format large), depuis Google Sheets ou Excel.
 
     - Si ``config.GSHEET_ID`` est renseigné : lecture du Google Sheet en ligne
-      (onglet ``config.GSHEET_TRIMS_TAB``) via son export CSV public. Le Sheet
-      doit être partagé « Tout utilisateur disposant du lien : Lecteur ».
-      ``headers=1`` force la 1re ligne comme en-tête (sinon Google ne détecte
-      pas l'en-tête quand la 1re colonne est du texte).
-    - Sinon : lecture du fichier Excel local (développement hors ligne).
+      (onglet ``gsheet_tab``) via son export CSV public. ``headers=1`` force la
+      1re ligne comme en-tête (sinon Google ne la détecte pas quand la 1re
+      colonne est du texte).
+    - Sinon : lecture de l'onglet ``excel_sheet`` du fichier Excel local.
 
     Args:
+        gsheet_tab: Nom de l'onglet côté Google Sheets.
+        excel_sheet: Nom de l'onglet côté Excel.
         excel_path: Chemin Excel (utilisé uniquement si GSHEET_ID est vide).
 
     Returns:
-        DataFrame brut de l'onglet Trims (en-têtes en première ligne).
+        DataFrame brut de l'onglet (en-têtes en première ligne).
     """
     if GSHEET_ID:
         url = (
             f"https://docs.google.com/spreadsheets/d/{GSHEET_ID}"
-            f"/gviz/tq?tqx=out:csv&headers=1&sheet={quote(GSHEET_TRIMS_TAB)}"
+            f"/gviz/tq?tqx=out:csv&headers=1&sheet={quote(gsheet_tab)}"
         )
         return pd.read_csv(url)
     chemin = excel_path if excel_path is not None else EXCEL_PATH
-    return pd.read_excel(chemin, sheet_name=SHEET_TRIMS, header=0)
+    return pd.read_excel(chemin, sheet_name=excel_sheet, header=0)
+
+
+def _read_trims_raw(excel_path: str | None = None) -> pd.DataFrame:
+    """Lit l'onglet Trims brut (format large). Voir :func:`_read_tab_raw`."""
+    return _read_tab_raw(GSHEET_TRIMS_TAB, SHEET_TRIMS, excel_path)
 
 
 def _to_float(value) -> float | None:
@@ -147,8 +171,71 @@ def _periodes_depuis_trimestres(
     return res
 
 
+def _lire_lignes_rn(excel_path: str | None = None) -> list[list]:
+    """Lit le Résultat Net (RN) depuis les feuilles Semestriel et Annuel.
+
+    Ne garde QUE les lignes dont ``TypeValeur`` vaut ``RN`` (les CA/Capex/
+    Endettement éventuellement présents dans ces feuilles sont ignorés : ils
+    restent gérés par « Trims »). Le RN n'a pas de valeur trimestrielle.
+
+    - Semestriel : colonnes ``S1_AAAA`` / ``S2_AAAA`` -> périodes S1 / S2.
+    - Annuel     : colonnes d'années pures ``AAAA``   -> période Annuel
+                   (les colonnes « Var %_… » sont ignorées).
+
+    Le nom de la société est pris dans la 1re colonne, dont l'intitulé diffère
+    selon la feuille (« Mmad » / « Colonne1 ») : on lit donc ``df.columns[0]``.
+
+    Args:
+        excel_path: Chemin Excel (utilisé uniquement si GSHEET_ID est vide).
+
+    Returns:
+        Liste de lignes [Société, Ticker, TypeValeur, Année, Période, Valeur,
+        TypePériode] prêtes à être ajoutées au tableau long.
+    """
+    lignes: list[list] = []
+
+    def _lignes_depuis(
+        df: pd.DataFrame, cols_periode: list[str], periode_fixe: str | None,
+        type_periode: str,
+    ) -> None:
+        df.columns = [str(c).strip() for c in df.columns]
+        col_nom = df.columns[0]  # « Mmad » (Semestriel) ou « Colonne1 » (Annuel)
+        for _, row in df[df["Ticker"].notna()].iterrows():
+            if str(row["TypeValeur"]).strip() != INDICATEUR_RN:
+                continue
+            soc = str(row[col_nom]).strip()
+            if not soc or soc.lower() == "nan":
+                continue
+            ticker = str(row["Ticker"]).strip()
+            for col in cols_periode:
+                val = _to_float(row.get(col))
+                if val is None:
+                    continue  # case vide -> on n'invente jamais de 0
+                if periode_fixe is None:          # Semestriel : "S1_2022"
+                    periode, annee = col.split("_")
+                else:                              # Annuel : "2022"
+                    periode, annee = periode_fixe, col
+                lignes.append(
+                    [soc, ticker, INDICATEUR_RN, int(annee), periode, val, type_periode]
+                )
+
+    # --- Semestriel (S1 / S2) ---
+    df_sem = _read_tab_raw(GSHEET_SEMESTRIEL_TAB, SHEET_SEMESTRIEL, excel_path)
+    df_sem.columns = [str(c).strip() for c in df_sem.columns]
+    cols_sem = [c for c in df_sem.columns if RE_COL_SEMESTRE.fullmatch(c)]
+    _lignes_depuis(df_sem, cols_sem, periode_fixe=None, type_periode="Semestriel")
+
+    # --- Annuel ---
+    df_ann = _read_tab_raw(GSHEET_ANNUEL_TAB, SHEET_ANNUEL, excel_path)
+    df_ann.columns = [str(c).strip() for c in df_ann.columns]
+    cols_ann = [c for c in df_ann.columns if RE_COL_ANNEE.fullmatch(c)]
+    _lignes_depuis(df_ann, cols_ann, periode_fixe="Annuel", type_periode="Annuel")
+
+    return lignes
+
+
 def load_data(excel_path: str | None = None) -> pd.DataFrame:
-    """Charge la feuille Trims et reconstruit un tableau long exploitable.
+    """Charge Trims (CA/Capex/Endettement) + RN (Semestriel/Annuel).
 
     Args:
         excel_path: Chemin Excel (utilisé uniquement si GSHEET_ID est vide).
@@ -182,6 +269,9 @@ def load_data(excel_path: str | None = None) -> pd.DataFrame:
                     lignes.append([soc, ticker, indic, annee, t, vals[t], "Trimestriel"])
             for per, val, type_per in _periodes_depuis_trimestres(vals, est_flux):
                 lignes.append([soc, ticker, indic, annee, per, val, type_per])
+
+    # --- Ajout du Résultat Net (RN) lu depuis Semestriel + Annuel ---
+    lignes.extend(_lire_lignes_rn(excel_path))
 
     out = pd.DataFrame(
         lignes,
